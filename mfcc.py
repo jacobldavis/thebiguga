@@ -5,8 +5,8 @@ import librosa.display #type: ignore
 from scipy.fft import rfft
 
 # Configuration for spectral hash
-CHARSET = '0123456789abcdef'  # 16 characters for robustness
-FIXED_BUCKETS = 32  # Fixed bucket count for consistency
+CHARSET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+FIXED_BUCKETS = 20
 FFT_SIZE = 2048
 SILENCE_CHAR = '-'
 SILENCE_THRESHOLD = 0.02
