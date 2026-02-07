@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditory Auth – Spectral Fingerprint</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>🎤 Auditory Auth – Spectral Fingerprint</h1>
+    <p class="subtitle">Record up to <strong>5 seconds</strong> of audio. It will be hashed into a spectral fingerprint string.</p>
+
+    <canvas id="waveform" width="640" height="120"></canvas>
+
+    <div id="controls">
+        <button id="btn-record">⏺ Start Recording</button>
+        <button id="btn-save-wav" disabled>🔊 Save WAV</button>
+        <button id="btn-save-hash" disabled>💾 Save Hash JSON</button>
+    </div>
+
+    <div id="status">
+        <span id="rec-indicator" class="hidden">🔴 Recording…</span>
+        <span id="timer">0.0 s / 5.0 s</span>
+    </div>
+
+    <div id="result-section" class="hidden">
+        <h3>Spectral Hash</h3>
+        <pre id="hash-display"></pre>
+        <p class="hash-info">
+            <span id="hash-length">0</span> characters
+            &nbsp;·&nbsp;
+            <span id="bucket-count">0</span> time buckets
+            &nbsp;·&nbsp;
+            bucket size <span id="bucket-size">2048</span> samples
+            &nbsp;·&nbsp;
+            sample rate <span id="sample-rate">—</span> Hz
+        </p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@ from scipy.io import wavfile
 from scipy.fft import fft, fftfreq
 import numpy as np
 
-sample_rate, audio_data = wavfile.read('ex.wav')
+sample_rate, audio_data = wavfile.read('a.wav')
 wavfile.write('labubu.wav', sample_rate, audio_data)
 
 print(f"Sample rate: {sample_rate} Hz")

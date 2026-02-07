@@ -1,0 +1,10 @@
+{
+  "hash": "-WTSSSQSQPQFQPPPVYZ00YYYYYWVVVVTSTSMXZZZTXXRCVVVVKRRSSRR53333110",
+  "hashLength": 64,
+  "sampleRate": 48000,
+  "fftSize": 2048,
+  "freqMin": 50,
+  "freqMax": 8000,
+  "silentBuckets": 1,
+  "activeBuckets": 63
+}
