@@ -13,43 +13,80 @@
         <p>a spell to transmute audio into authentication</p>
     </header>
 
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="voiceprint">voiceprint</button>
+        <button class="tab-btn" data-tab="captcha">audio captcha</button>
+    </nav>
+
     <main>
-        <div class="card">
-            <canvas id="waveform" width="640" height="100"></canvas>
+        <!-- ═══ Voiceprint Tab ═══ -->
+        <div id="tab-voiceprint" class="tab-panel active">
+            <div class="card">
+                <canvas id="waveform" width="640" height="100"></canvas>
 
-            <div class="username-row">
-                <input type="text" id="username-input" placeholder="enter username..." />
-                <button id="btn-username-enter" class="username-enter" title="Submit">&crarr;</button>
+                <div class="username-row">
+                    <input type="text" id="username-input" placeholder="enter username..." />
+                    <button id="btn-username-enter" class="username-enter" title="Submit">&crarr;</button>
+                </div>
+
+                <div class="button-row">
+                    <button id="btn-record">record</button>
+                    <button id="btn-authenticate">authenticate</button>
+                </div>
+
+                <div id="status">
+                    <span id="rec-indicator" class="hidden">listening&hellip;</span>
+                    <span id="timer"></span>
+                </div>
             </div>
 
-            <div class="button-row">
-                <button id="btn-record">record</button>
-                <button id="btn-authenticate">authenticate</button>
+            <div id="result-section" class="card hidden">
+                <p class="result-label">spectral hash</p>
+                <pre id="hash-display"></pre>
+                <div class="save-row">
+                    <button id="btn-save-wav" class="small" disabled>save wav</button>
+                    <button id="btn-save-hash" class="small" disabled>save hash</button>
+                    <button id="btn-playback" class="small" disabled>playback</button>
+                </div>
+                <details class="hash-info">
+                    <summary><span id="hash-length">0</span> chars &middot; <span id="bucket-count">0</span> buckets</summary>
+                    <span id="bucket-size">2048</span> samples/bucket &middot; <span id="sample-rate">&mdash;</span> hz
+                </details>
             </div>
 
-            <div id="status">
-                <span id="rec-indicator" class="hidden">listening&hellip;</span>
-                <span id="timer"></span>
+            <div id="auth-result-section" class="card hidden">
+                <p class="result-label">authentication result</p>
+                <div id="auth-score-display"></div>
             </div>
         </div>
 
-        <div id="result-section" class="card hidden">
-            <p class="result-label">spectral hash</p>
-            <pre id="hash-display"></pre>
-            <div class="save-row">
-                <button id="btn-save-wav" class="small" disabled>save wav</button>
-                <button id="btn-save-hash" class="small" disabled>save hash</button>
-                <button id="btn-playback" class="small" disabled>playback</button>
+        <!-- ═══ Audio Captcha Tab ═══ -->
+        <div id="tab-captcha" class="tab-panel">
+            <div class="card">
+                <p class="result-label">challenge pattern</p>
+                <canvas id="captcha-waveform" width="640" height="100"></canvas>
+                <div class="button-row captcha-btn-row">
+                    <button id="btn-captcha-generate">generate</button>
+                    <button id="btn-captcha-play" disabled>play</button>
+                </div>
             </div>
-            <details class="hash-info">
-                <summary><span id="hash-length">0</span> chars &middot; <span id="bucket-count">0</span> buckets</summary>
-                <span id="bucket-size">2048</span> samples/bucket &middot; <span id="sample-rate">&mdash;</span> hz
-            </details>
-        </div>
 
-        <div id="auth-result-section" class="card hidden">
-            <p class="result-label">authentication result</p>
-            <div id="auth-score-display"></div>
+            <div class="card">
+                <p class="result-label">your response</p>
+                <canvas id="captcha-response-waveform" width="640" height="100"></canvas>
+                <div class="button-row captcha-btn-row">
+                    <button id="btn-captcha-record" disabled>record</button>
+                </div>
+                <div id="captcha-status">
+                    <span id="captcha-rec-indicator" class="hidden">listening&hellip;</span>
+                    <span id="captcha-timer"></span>
+                </div>
+            </div>
+
+            <div id="captcha-result-section" class="card hidden">
+                <p class="result-label">captcha result</p>
+                <div id="captcha-score-display"></div>
+            </div>
         </div>
     </main>
 

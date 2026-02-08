@@ -639,3 +639,455 @@ setInterval(createBackgroundOrb, 8000);
 for (let i = 0; i < 3; i++) {
     setTimeout(createBackgroundOrb, i * 2000);
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Tab Navigation
+// ═══════════════════════════════════════════════════════════
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+        // Redraw idle lines on the captcha canvases when switching to that tab
+        if (btn.dataset.tab === 'captcha') {
+            captchaResizeCanvases();
+            captchaDrawIdle(captchaChallengeCtx, captchaChallengeCanvas);
+            captchaDrawIdle(captchaResponseCtx, captchaResponseCanvas);
+            if (captchaChallengeSamples) captchaDrawStatic(captchaChallengeCtx, captchaChallengeCanvas, captchaChallengeSamples);
+            if (captchaResponseSamples)  captchaDrawStatic(captchaResponseCtx, captchaResponseCanvas, captchaResponseSamples);
+        } else {
+            resizeCanvas();
+            drawIdleLine();
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  Audio Captcha System
+// ═══════════════════════════════════════════════════════════
+
+// ─── Captcha DOM refs ────────────────────────────────────
+const captchaChallengeCanvas  = document.getElementById('captcha-waveform');
+const captchaChallengeCtx     = captchaChallengeCanvas.getContext('2d');
+const captchaResponseCanvas   = document.getElementById('captcha-response-waveform');
+const captchaResponseCtx      = captchaResponseCanvas.getContext('2d');
+const btnCaptchaGenerate      = document.getElementById('btn-captcha-generate');
+const btnCaptchaPlay          = document.getElementById('btn-captcha-play');
+const btnCaptchaRecord        = document.getElementById('btn-captcha-record');
+const captchaRecIndicator     = document.getElementById('captcha-rec-indicator');
+const captchaTimerEl          = document.getElementById('captcha-timer');
+const captchaResultSection    = document.getElementById('captcha-result-section');
+const captchaScoreDisplay     = document.getElementById('captcha-score-display');
+
+// ─── Captcha state ───────────────────────────────────────
+const CAPTCHA_SAMPLE_RATE = 44100;
+const CAPTCHA_DURATION_S  = 3;
+const CAPTCHA_REC_DURATION_S = 4; // give user a little extra time
+let captchaTapTimes       = [];   // onset times in seconds for the challenge
+let captchaChallengeSamples = null;
+let captchaChallengeBlob  = null;
+let captchaResponseSamples = null;
+let captchaRecording      = false;
+let captchaAudioCtx       = null;
+let captchaMediaStream    = null;
+let captchaSourceNode     = null;
+let captchaProcessorNode  = null;
+let captchaAnalyserNode   = null;
+let captchaChunks         = [];
+let captchaSampleCount    = 0;
+let captchaAnimFrame      = null;
+
+// ─── Canvas helpers ──────────────────────────────────────
+function captchaResizeCanvases() {
+    captchaChallengeCanvas.width  = captchaChallengeCanvas.clientWidth;
+    captchaChallengeCanvas.height = captchaChallengeCanvas.clientHeight;
+    captchaResponseCanvas.width   = captchaResponseCanvas.clientWidth;
+    captchaResponseCanvas.height  = captchaResponseCanvas.clientHeight;
+}
+
+function captchaDrawIdle(drawCtx, cvs) {
+    drawCtx.fillStyle = '#e8d6a8';
+    drawCtx.fillRect(0, 0, cvs.width, cvs.height);
+    drawCtx.strokeStyle = '#c8b080';
+    drawCtx.beginPath();
+    drawCtx.moveTo(0, cvs.height / 2);
+    drawCtx.lineTo(cvs.width, cvs.height / 2);
+    drawCtx.stroke();
+}
+
+function captchaDrawStatic(drawCtx, cvs, samples) {
+    drawCtx.fillStyle = '#e8d6a8';
+    drawCtx.fillRect(0, 0, cvs.width, cvs.height);
+
+    const step = Math.ceil(samples.length / cvs.width);
+    const amp  = cvs.height / 2;
+
+    drawCtx.lineWidth   = 1;
+    drawCtx.strokeStyle = '#b8a078';
+    drawCtx.beginPath();
+
+    for (let i = 0; i < cvs.width; i++) {
+        let min = 1, max = -1;
+        for (let j = 0; j < step; j++) {
+            const s = samples[i * step + j] || 0;
+            if (s < min) min = s;
+            if (s > max) max = s;
+        }
+        drawCtx.moveTo(i, amp + min * amp);
+        drawCtx.lineTo(i, amp + max * amp);
+    }
+    drawCtx.stroke();
+}
+
+// ─── Generate rhythmic pattern ───────────────────────────
+// Creates a sequence of short "tap" impulses at random-ish intervals
+
+function generateTapPattern() {
+    const sr       = CAPTCHA_SAMPLE_RATE;
+    const duration = CAPTCHA_DURATION_S;
+    const totalSamples = sr * duration;
+    const samples  = new Float32Array(totalSamples);
+
+    // Generate 4–7 taps spread across the duration
+    const numTaps = Math.floor(Math.random() * 4) + 4; // 4-7
+    const tapTimes = [];
+
+    // First tap between 0.15s and 0.4s
+    tapTimes.push(0.15 + Math.random() * 0.25);
+
+    // Subsequent taps with varying intervals (0.25s–0.65s)
+    for (let i = 1; i < numTaps; i++) {
+        const gap = 0.25 + Math.random() * 0.4;
+        const next = tapTimes[i - 1] + gap;
+        if (next > duration - 0.1) break;
+        tapTimes.push(next);
+    }
+
+    captchaTapTimes = tapTimes;
+
+    // Synthesize each tap as a short burst (damped sine click)
+    for (const t of tapTimes) {
+        const startSample = Math.floor(t * sr);
+        const tapLen = Math.floor(0.02 * sr); // 20ms tap
+        const freq = 800 + Math.random() * 400; // 800-1200 Hz
+        for (let i = 0; i < tapLen && (startSample + i) < totalSamples; i++) {
+            const env = Math.exp(-i / (0.004 * sr)); // fast decay
+            samples[startSample + i] += 0.8 * env * Math.sin(2 * Math.PI * freq * i / sr);
+        }
+    }
+
+    captchaChallengeSamples = samples;
+
+    // Build WAV blob for playback
+    captchaChallengeBlob = captchaSamplesToWav(samples, sr);
+
+    // Draw on challenge canvas
+    captchaResizeCanvases();
+    captchaDrawStatic(captchaChallengeCtx, captchaChallengeCanvas, samples);
+
+    // Reset response
+    captchaResponseSamples = null;
+    captchaDrawIdle(captchaResponseCtx, captchaResponseCanvas);
+    captchaResultSection.classList.add('hidden');
+    captchaTimerEl.textContent = `${tapTimes.length} taps — listen, then tap it back`;
+
+    btnCaptchaPlay.disabled   = false;
+    btnCaptchaRecord.disabled = false;
+}
+
+// ─── Play challenge audio ────────────────────────────────
+function playCaptchaChallenge() {
+    if (!captchaChallengeBlob) return;
+    const audio = new Audio(URL.createObjectURL(captchaChallengeBlob));
+    audio.play();
+}
+
+// ─── Record user response ────────────────────────────────
+async function toggleCaptchaRecording() {
+    if (!captchaRecording) await startCaptchaRecording();
+    else stopCaptchaRecording();
+}
+
+async function startCaptchaRecording() {
+    try {
+        captchaMediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl:  true,
+            }
+        });
+    } catch (e) {
+        captchaTimerEl.textContent = 'mic access denied';
+        return;
+    }
+
+    captchaAudioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+    const sr          = captchaAudioCtx.sampleRate;
+    captchaSourceNode = captchaAudioCtx.createMediaStreamSource(captchaMediaStream);
+
+    captchaAnalyserNode         = captchaAudioCtx.createAnalyser();
+    captchaAnalyserNode.fftSize = 2048;
+    captchaSourceNode.connect(captchaAnalyserNode);
+
+    captchaProcessorNode = captchaAudioCtx.createScriptProcessor(4096, 1, 1);
+    captchaChunks      = [];
+    captchaSampleCount = 0;
+    const targetSamples = CAPTCHA_REC_DURATION_S * sr;
+
+    captchaProcessorNode.onaudioprocess = (e) => {
+        if (!captchaRecording) return;
+        const buf = new Float32Array(e.inputBuffer.getChannelData(0));
+        captchaChunks.push(buf);
+        captchaSampleCount += buf.length;
+
+        const capturedSecs = captchaSampleCount / sr;
+        captchaTimerEl.textContent = `${capturedSecs.toFixed(1)}s`;
+
+        if (captchaSampleCount >= targetSamples) stopCaptchaRecording();
+    };
+
+    captchaSourceNode.connect(captchaProcessorNode);
+    captchaProcessorNode.connect(captchaAudioCtx.destination);
+
+    captchaRecording = true;
+
+    btnCaptchaRecord.textContent = 'stop';
+    btnCaptchaRecord.classList.add('recording');
+    btnCaptchaGenerate.disabled = true;
+    btnCaptchaPlay.disabled     = true;
+    captchaRecIndicator.classList.remove('hidden');
+    captchaResultSection.classList.add('hidden');
+
+    // Live waveform
+    captchaDrawLive();
+}
+
+function stopCaptchaRecording() {
+    captchaRecording = false;
+    cancelAnimationFrame(captchaAnimFrame);
+
+    if (captchaProcessorNode) { captchaProcessorNode.disconnect(); captchaProcessorNode = null; }
+    if (captchaSourceNode)    { captchaSourceNode.disconnect();    captchaSourceNode    = null; }
+    if (captchaAnalyserNode)  { captchaAnalyserNode.disconnect();  captchaAnalyserNode  = null; }
+    if (captchaMediaStream)   { captchaMediaStream.getTracks().forEach(t => t.stop()); captchaMediaStream = null; }
+
+    const sr = captchaAudioCtx ? captchaAudioCtx.sampleRate : CAPTCHA_SAMPLE_RATE;
+    if (captchaAudioCtx) { captchaAudioCtx.close(); captchaAudioCtx = null; }
+
+    btnCaptchaRecord.textContent = 'record';
+    btnCaptchaRecord.classList.remove('recording');
+    btnCaptchaGenerate.disabled = false;
+    btnCaptchaPlay.disabled     = false;
+    captchaRecIndicator.classList.add('hidden');
+
+    // Merge chunks
+    const totalLen = captchaChunks.reduce((n, c) => n + c.length, 0);
+    const samples  = new Float32Array(totalLen);
+    let off = 0;
+    for (const chunk of captchaChunks) { samples.set(chunk, off); off += chunk.length; }
+    captchaChunks = [];
+
+    if (samples.length < 2048) {
+        captchaTimerEl.textContent = 'too short — try again';
+        captchaDrawIdle(captchaResponseCtx, captchaResponseCanvas);
+        return;
+    }
+
+    captchaResponseSamples = samples;
+    captchaDrawStatic(captchaResponseCtx, captchaResponseCanvas, samples);
+
+    // Compare patterns
+    const score = compareTapPatterns(captchaChallengeSamples, CAPTCHA_SAMPLE_RATE,
+                                     captchaResponseSamples, sr);
+    displayCaptchaResult(score);
+}
+
+function captchaDrawLive() {
+    if (!captchaAnalyserNode) return;
+    const bufLen = captchaAnalyserNode.frequencyBinCount;
+    const data   = new Uint8Array(bufLen);
+
+    function frame() {
+        if (!captchaRecording) return;
+        captchaAnimFrame = requestAnimationFrame(frame);
+
+        captchaAnalyserNode.getByteTimeDomainData(data);
+        captchaResponseCtx.fillStyle = '#e8d6a8';
+        captchaResponseCtx.fillRect(0, 0, captchaResponseCanvas.width, captchaResponseCanvas.height);
+
+        captchaResponseCtx.lineWidth   = 2;
+        captchaResponseCtx.strokeStyle = '#7a5c3a';
+        captchaResponseCtx.beginPath();
+
+        const sliceW = captchaResponseCanvas.width / bufLen;
+        let x = 0;
+        for (let i = 0; i < bufLen; i++) {
+            const y = (data[i] / 255) * captchaResponseCanvas.height;
+            i === 0 ? captchaResponseCtx.moveTo(x, y) : captchaResponseCtx.lineTo(x, y);
+            x += sliceW;
+        }
+        captchaResponseCtx.lineTo(captchaResponseCanvas.width, captchaResponseCanvas.height / 2);
+        captchaResponseCtx.stroke();
+    }
+    frame();
+}
+
+// ─── Tap onset detection & comparison ────────────────────
+
+function detectOnsets(samples, sr) {
+    // Compute energy envelope in short frames, find peaks
+    const frameLen  = Math.floor(0.01 * sr);  // 10ms frames
+    const hopLen    = Math.floor(0.005 * sr);  // 5ms hop
+    const numFrames = Math.floor((samples.length - frameLen) / hopLen);
+    const energy    = new Float32Array(numFrames);
+
+    for (let f = 0; f < numFrames; f++) {
+        let sum = 0;
+        const start = f * hopLen;
+        for (let i = 0; i < frameLen; i++) {
+            const s = samples[start + i] || 0;
+            sum += s * s;
+        }
+        energy[f] = Math.sqrt(sum / frameLen); // RMS
+    }
+
+    // Adaptive threshold: mean + 2*std of energy
+    let mean = 0;
+    for (let i = 0; i < numFrames; i++) mean += energy[i];
+    mean /= numFrames;
+
+    let variance = 0;
+    for (let i = 0; i < numFrames; i++) variance += (energy[i] - mean) ** 2;
+    const std = Math.sqrt(variance / numFrames);
+
+    const threshold = mean + 1.5 * std;
+    const minGapFrames = Math.floor(0.1 * sr / hopLen); // at least 100ms between onsets
+
+    const onsets = [];
+    let lastOnsetFrame = -minGapFrames;
+
+    for (let f = 1; f < numFrames; f++) {
+        if (energy[f] > threshold && energy[f] > energy[f - 1] && (f - lastOnsetFrame) >= minGapFrames) {
+            onsets.push(f * hopLen / sr); // time in seconds
+            lastOnsetFrame = f;
+        }
+    }
+
+    return onsets;
+}
+
+function compareTapPatterns(challengeSamples, challengeSr, responseSamples, responseSr) {
+    // Use the known tap times from the generated challenge
+    const challengeOnsets = captchaTapTimes;
+    const responseOnsets  = detectOnsets(responseSamples, responseSr);
+
+    if (responseOnsets.length === 0) return 0;
+
+    // Compare inter-onset intervals (IOI)
+    const challengeIOI = [];
+    for (let i = 1; i < challengeOnsets.length; i++) {
+        challengeIOI.push(challengeOnsets[i] - challengeOnsets[i - 1]);
+    }
+
+    const responseIOI = [];
+    for (let i = 1; i < responseOnsets.length; i++) {
+        responseIOI.push(responseOnsets[i] - responseOnsets[i - 1]);
+    }
+
+    if (challengeIOI.length === 0 || responseIOI.length === 0) {
+        // If only 1 tap in either, score based on tap count match
+        return challengeOnsets.length === responseOnsets.length ? 85 : 30;
+    }
+
+    // Score 1: Number of taps similarity (0-100)
+    const tapCountDiff = Math.abs(challengeOnsets.length - responseOnsets.length);
+    const tapCountScore = Math.max(0, 100 - tapCountDiff * 25);
+
+    // Score 2: IOI similarity using DTW-like alignment
+    // Use simpler approach: align the shorter IOI sequence to the longer one
+    const minLen = Math.min(challengeIOI.length, responseIOI.length);
+    const maxLen = Math.max(challengeIOI.length, responseIOI.length);
+
+    let ioiScore = 0;
+    if (minLen > 0) {
+        // Compare corresponding intervals
+        const ref = challengeIOI;
+        const test = responseIOI;
+
+        let totalError = 0;
+        const pairLen = Math.min(ref.length, test.length);
+        for (let i = 0; i < pairLen; i++) {
+            const relError = Math.abs(ref[i] - test[i]) / ref[i];
+            totalError += relError;
+        }
+        const avgRelError = totalError / pairLen;
+
+        // Convert to score: 0% error → 100, 50%+ error → 0
+        ioiScore = Math.max(0, Math.min(100, (1 - avgRelError / 0.5) * 100));
+
+        // Penalise for unmatched intervals
+        if (maxLen > minLen) {
+            ioiScore *= (minLen / maxLen);
+        }
+    }
+
+    // Weighted combination: 40% tap count, 60% timing
+    const finalScore = 0.4 * tapCountScore + 0.6 * ioiScore;
+    return Math.round(Math.max(0, Math.min(100, finalScore)));
+}
+
+function displayCaptchaResult(score) {
+    const passed = score >= 60;
+
+    captchaScoreDisplay.className = passed ? 'captcha-pass' : 'captcha-fail';
+    captchaScoreDisplay.innerHTML =
+        `${score}%` +
+        `<span class="captcha-label">${passed ? 'captcha passed — human verified' : 'captcha failed — try again'}</span>`;
+    captchaResultSection.classList.remove('hidden');
+    captchaTimerEl.textContent = '';
+}
+
+// ─── WAV encoder for captcha ─────────────────────────────
+function captchaSamplesToWav(samples, sampleRate) {
+    const numCh    = 1;
+    const bps      = 16;
+    const byteRate = sampleRate * numCh * (bps / 8);
+    const blockAlign = numCh * (bps / 8);
+    const dataSize = samples.length * (bps / 8);
+    const bufSize  = 44 + dataSize;
+    const buf      = new ArrayBuffer(bufSize);
+    const v        = new DataView(buf);
+
+    let o = 0;
+    const ws  = (s) => { for (let i = 0; i < s.length; i++) v.setUint8(o++, s.charCodeAt(i)); };
+    const w32 = (n) => { v.setUint32(o, n, true); o += 4; };
+    const w16 = (n) => { v.setUint16(o, n, true); o += 2; };
+
+    ws('RIFF'); w32(bufSize - 8); ws('WAVE');
+    ws('fmt '); w32(16); w16(1); w16(numCh);
+    w32(sampleRate); w32(byteRate); w16(blockAlign); w16(bps);
+    ws('data'); w32(dataSize);
+
+    for (let i = 0; i < samples.length; i++) {
+        let s = Math.max(-1, Math.min(1, samples[i]));
+        s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        v.setInt16(o, s | 0, true);
+        o += 2;
+    }
+
+    return new Blob([buf], { type: 'audio/wav' });
+}
+
+// ─── Captcha event listeners ─────────────────────────────
+btnCaptchaGenerate.addEventListener('click', generateTapPattern);
+btnCaptchaPlay.addEventListener('click', playCaptchaChallenge);
+btnCaptchaRecord.addEventListener('click', () => {
+    toggleCaptchaRecording().catch(err => {
+        console.error('captcha recording error:', err);
+        captchaTimerEl.textContent = 'error: ' + err.message;
+    });
+});
