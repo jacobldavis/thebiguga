@@ -394,7 +394,7 @@ button:disabled {
     );
 }
 
-#btn-save-hash {
+#btn-save-spectrogram {
     background: linear-gradient(to right, 
         #2d4a3d 0%, 
         #3f6855 7%, 
@@ -470,35 +470,14 @@ button.small {
     text-align: center;
 }
 
-#hash-display {
+#error-display {
     font-family: 'Courier New', Courier, monospace;
     font-size: 14px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    padding: 14px;
-    max-height: 160px;
-    overflow-y: auto;
+    padding: 10px 14px;
+    color: #a33;
+    text-align: center;
     word-break: break-all;
     white-space: pre-wrap;
-    color: #5a3d2a;
-    line-height: 1.6;
-    text-align: center;
-}
-
-.hash-info {
-    margin-top: 10px;
-    font-size: 11px;
-    color: #c4b49e;
-    text-align: center;
-}
-
-.hash-info summary {
-    cursor: pointer;
-}
-
-.hash-info summary:hover {
-    color: #a89880;
 }
 
 /* ── authenticate button ──── */
@@ -851,3 +830,37 @@ button.small {
 #captcha-score-display.captcha-fail {
     color: #8a4a3a;
 }
+
+/* ── spectrogram ──────────── */
+#result-section {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.spectrogram-frame {
+    position: relative;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    overflow: hidden;
+    filter: drop-shadow(2px 3px 6px rgba(92, 79, 61, 0.3));
+    clip-path: polygon(
+        1% 0%, 4% 0.6%, 10% 0.2%, 18% 0.8%, 28% 0.3%, 38% 0.7%, 50% 0.1%, 62% 0.6%, 72% 0.2%, 82% 0.8%, 90% 0.3%, 96% 0.5%, 99% 0%,
+        99.5% 5%, 99.8% 15%, 99.5% 30%, 99.7% 45%, 99.4% 60%, 99.7% 75%, 99.5% 88%, 99.8% 95%, 99% 100%,
+        96% 99.5%, 90% 99.8%, 82% 99.3%, 72% 99.7%, 62% 99.4%, 50% 99.8%, 38% 99.3%, 28% 99.7%, 18% 99.4%, 10% 99.8%, 4% 99.5%, 1% 100%,
+        0.5% 95%, 0.2% 88%, 0.5% 75%, 0.3% 60%, 0.6% 45%, 0.3% 30%, 0.5% 15%, 0.2% 5%
+    );
+}
+
+#spectrogram-canvas {
+    display: block;
+    width: 100%;
+    height: 240px;
+    border-radius: 14px;
+    background: #e8d6a8;
+}
+
+/* spectrogram-btn styles merged into #btn-save-spectrogram */

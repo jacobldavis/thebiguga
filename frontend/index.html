@@ -51,17 +51,16 @@
             </div>
 
             <div id="result-section" class="card hidden">
-                <p class="result-label">spectral hash</p>
-                <pre id="hash-display"></pre>
+                <p class="result-label">spectral grimoire</p>
+                <div class="spectrogram-frame">
+                    <canvas id="spectrogram-canvas" width="640" height="200"></canvas>
+                </div>
+                <div id="error-display" class="hidden"></div>
                 <div class="save-row">
                     <button id="btn-save-wav" class="small" disabled>save wav</button>
-                    <button id="btn-save-hash" class="small" disabled>save hash</button>
+                    <button id="btn-save-spectrogram" class="small spectrogram-btn" disabled>save heatmap</button>
                     <button id="btn-playback" class="small" disabled>playback</button>
                 </div>
-                <details class="hash-info">
-                    <summary><span id="hash-length">0</span> chars &middot; <span id="bucket-count">0</span> buckets</summary>
-                    <span id="bucket-size">2048</span> samples/bucket &middot; <span id="sample-rate">&mdash;</span> hz
-                </details>
             </div>
 
             <div id="auth-result-section" class="card hidden">

@@ -49,21 +49,19 @@ const ctx           = canvas.getContext('2d');
 const btnRecord     = document.getElementById('btn-record');
 const btnAuth       = document.getElementById('btn-authenticate');
 const btnWav        = document.getElementById('btn-save-wav');
-const btnHash       = document.getElementById('btn-save-hash');
 const btnPlayback   = document.getElementById('btn-playback');
 const recIndicator  = document.getElementById('rec-indicator');
 const timerEl       = document.getElementById('timer');
 const resultSection = document.getElementById('result-section');
-const hashDisplay   = document.getElementById('hash-display');
-const hashLengthEl  = document.getElementById('hash-length');
-const bucketCountEl = document.getElementById('bucket-count');
-const bucketSizeEl  = document.getElementById('bucket-size');
-const sampleRateEl  = document.getElementById('sample-rate');
+const errorDisplay  = document.getElementById('error-display');
 const usernameInput = document.getElementById('username-input');
 const btnUsernameEnter = document.getElementById('btn-username-enter');
 const authResultSection = document.getElementById('auth-result-section');
 const authScoreDisplay  = document.getElementById('auth-score-display');
 const aboutContentEl    = document.getElementById('about-content');
+const spectrogramCanvas  = document.getElementById('spectrogram-canvas');
+const spectrogramCtx     = spectrogramCanvas.getContext('2d');
+const btnSaveSpectrogram = document.getElementById('btn-save-spectrogram');
 
 // ─── Button event listeners ──────────────────────────────
 btnRecord.addEventListener('click', () => {
@@ -91,8 +89,8 @@ btnAuth.addEventListener('click', () => {
 });
 
 btnWav.addEventListener('click',  () => saveWAV());
-btnHash.addEventListener('click', () => saveHash());
 btnPlayback.addEventListener('click', () => playRecording());
+btnSaveSpectrogram.addEventListener('click', () => downloadSpectrogram());
 
 // Username submit handler
 btnUsernameEnter.addEventListener('click', () => submitUsername());
@@ -111,7 +109,8 @@ drawIdleLine();
 
 // ─── Inline error display (works even when alert() is blocked) ──
 function showError(msg) {
-    hashDisplay.textContent   = msg;
+    errorDisplay.textContent   = msg;
+    errorDisplay.classList.remove('hidden');
     resultSection.classList.remove('hidden');
 }
 
@@ -302,7 +301,7 @@ async function startRecording() {
     resultSection.classList.add('hidden');
     authResultSection.classList.add('hidden');
     btnWav.disabled  = true;
-    btnHash.disabled = true;
+    btnSaveSpectrogram.disabled = true;
     btnPlayback.disabled = true;
 
     // Live waveform
@@ -352,10 +351,14 @@ function stopRecording() {
     currentWavBlob = samplesToWav(trimmed, recSampleRate);
     drawStaticWaveform(trimmed);
 
+    // ── Generate spectrogram visualization ──
+    generateSpectrogram(trimmed, recSampleRate);
+
     // ── Show save buttons immediately ──
     btnWav.disabled = false;
-    btnHash.disabled = false;
     btnPlayback.disabled = false;
+    errorDisplay.classList.add('hidden');
+    resultSection.classList.remove('hidden');
     processAudio();
 
     // ── Prompt for username ──
@@ -486,14 +489,9 @@ async function processAudio() {
         const result = await response.json();
         currentHash = result.hash;
 
-        // ── Display results ──
-        hashDisplay.textContent   = currentHash;
-        hashLengthEl.textContent  = result.hashLength;
-        bucketCountEl.textContent = NUM_BUCKETS;
-        sampleRateEl.textContent  = result.sampleRate;
+        // ── Store hash result (displayed via spectrogram now) ──
         resultSection.classList.remove('hidden');
         btnWav.disabled  = false;
-        btnHash.disabled = false;
         btnPlayback.disabled = false;
 
     } catch (error) {
@@ -501,6 +499,226 @@ async function processAudio() {
         showError('error processing audio: ' + error.message);
         drawIdleLine();
     }
+}
+
+// ═════════════════════════════════════════════════════════
+//  Spectrogram Generation (client-side FFT → magical color map)
+// ═════════════════════════════════════════════════════════
+
+function generateSpectrogram(samples, sampleRate) {
+    const fftSize = 1024;
+    const hop     = 256;
+    const nFrames = Math.floor((samples.length - fftSize) / hop);
+    const nBins   = fftSize / 2;
+
+    if (nFrames < 2) return;
+
+    // Compute STFT magnitude (simple Hann-windowed FFT per frame)
+    const magnitudes = [];
+    const hann = new Float32Array(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+        hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (fftSize - 1)));
+    }
+
+    for (let f = 0; f < nFrames; f++) {
+        const start = f * hop;
+        const windowed = new Float32Array(fftSize);
+        for (let i = 0; i < fftSize; i++) {
+            windowed[i] = (samples[start + i] || 0) * hann[i];
+        }
+        const mag = computeFFTMagnitude(windowed, fftSize);
+        magnitudes.push(mag);
+    }
+
+    // Convert to log scale (dB)
+    let maxDb = -Infinity, minDb = Infinity;
+    const dbFrames = magnitudes.map(mag => {
+        const db = new Float32Array(nBins);
+        for (let i = 0; i < nBins; i++) {
+            db[i] = 20 * Math.log10(mag[i] + 1e-10);
+            if (db[i] > maxDb) maxDb = db[i];
+            if (db[i] < minDb) minDb = db[i];
+        }
+        return db;
+    });
+
+    // Clamp dynamic range so quiet noise doesn't wash out
+    const floorDb = maxDb - 80;
+    minDb = Math.max(minDb, floorDb);
+    const range = maxDb - minDb || 1;
+
+    // ── Canvas layout with axis margins ──
+    const w = 1280;  // hi-dpi: 640 CSS px × 2
+    const h = 480;   // hi-dpi: 240 CSS px × 2
+    spectrogramCanvas.width  = w;
+    spectrogramCanvas.height = h;
+
+    const marginLeft   = 80;   // space for frequency labels
+    const marginBottom = 36;   // space for time labels
+    const marginTop    = 12;
+    const marginRight  = 12;
+    const plotW = w - marginLeft - marginRight;
+    const plotH = h - marginTop - marginBottom;
+
+    // ── Log-frequency mapping ──
+    const nyquist = sampleRate / 2;
+    const freqMin = 500;          // Hz — lower display bound
+    const freqMax = Math.min(nyquist, 8000); // Hz — upper display bound
+    const logMin  = Math.log(freqMin);
+    const logMax  = Math.log(freqMax);
+
+    // Helper: log-freq position → y pixel (0 = top of plot area)
+    function freqToY(freq) {
+        const t = (Math.log(freq) - logMin) / (logMax - logMin);
+        return plotH * (1 - t); // flip so low freq at bottom
+    }
+
+    // Helper: bin index → frequency
+    const binToFreq = (bin) => bin * nyquist / nBins;
+
+    // ── Fill background ──
+    spectrogramCtx.fillStyle = '#e8d6a8';
+    spectrogramCtx.fillRect(0, 0, w, h);
+
+    // ── Render spectrogram pixels ──
+    const imgData = spectrogramCtx.createImageData(plotW, plotH);
+    const data = imgData.data;
+
+    for (let px = 0; px < plotW; px++) {
+        const frameIdx = Math.min(Math.floor(px / plotW * nFrames), nFrames - 1);
+        const frame = dbFrames[frameIdx];
+
+        for (let py = 0; py < plotH; py++) {
+            // Map pixel row → frequency via log scale
+            const tNorm = 1 - py / plotH;  // 0 = bottom (low freq), 1 = top (high freq)
+            const freq  = Math.exp(logMin + tNorm * (logMax - logMin));
+            // Map frequency → FFT bin (linear interpolation between bins)
+            const exactBin = freq / nyquist * nBins;
+            const binLo  = Math.floor(exactBin);
+            const binHi  = Math.min(binLo + 1, nBins - 1);
+            const frac   = exactBin - binLo;
+            const dbVal  = frame[binLo] * (1 - frac) + frame[binHi] * frac;
+
+            const val = Math.max(0, Math.min(1, (dbVal - minDb) / range));
+            const [r, g, b] = spectrogramColorMap(val);
+
+            const idx = (py * plotW + px) * 4;
+            data[idx]     = r;
+            data[idx + 1] = g;
+            data[idx + 2] = b;
+            data[idx + 3] = 255;
+        }
+    }
+
+    spectrogramCtx.putImageData(imgData, marginLeft, marginTop);
+
+    // ── Draw frequency axis labels (log-spaced) ──
+    spectrogramCtx.fillStyle = 'rgba(92, 79, 61, 0.7)';
+    spectrogramCtx.font = `${Math.round(h * 0.038)}px Georgia`;
+    spectrogramCtx.textAlign = 'right';
+    const freqLabels = [100, 200, 500, 1000, 2000, 4000, 8000].filter(f => f >= freqMin && f <= freqMax);
+    for (const freq of freqLabels) {
+        const yPos = marginTop + freqToY(freq);
+        const label = freq >= 1000 ? (freq / 1000) + 'k' : String(freq);
+        spectrogramCtx.fillText(label + ' hz', marginLeft - 8, yPos + 5);
+        // Faint grid line
+        spectrogramCtx.strokeStyle = 'rgba(92, 79, 61, 0.1)';
+        spectrogramCtx.beginPath();
+        spectrogramCtx.moveTo(marginLeft, yPos);
+        spectrogramCtx.lineTo(w - marginRight, yPos);
+        spectrogramCtx.stroke();
+    }
+
+    // ── Draw time axis labels ──
+    spectrogramCtx.textAlign = 'center';
+    const duration = samples.length / sampleRate;
+    const timeStep = duration > 3 ? 1.0 : duration > 1 ? 0.5 : 0.25;
+    for (let t = 0; t <= duration; t += timeStep) {
+        const xPos = marginLeft + (t / duration) * plotW;
+        spectrogramCtx.fillText(t.toFixed(1) + 's', xPos, h - 6);
+    }
+
+    // Enable download button
+    btnSaveSpectrogram.disabled = false;
+}
+
+function spectrogramColorMap(t) {
+    // Pink → purple gradient (purple = highest intensity)
+    const stops = [
+        [0.00, 232, 214, 168],  // parchment (background)
+        [0.10, 230, 200, 180],  // warm blush
+        [0.25, 220, 160, 170],  // dusty rose
+        [0.40, 210, 120, 160],  // pink
+        [0.55, 190, 80,  150],  // hot pink
+        [0.70, 160, 50,  140],  // magenta
+        [0.82, 120, 30,  140],  // deep magenta
+        [0.92, 85,  20,  130],  // dark purple
+        [1.00, 55,  10,  100],  // deepest purple
+    ];
+
+    // Find surrounding stops
+    let lo = stops[0], hi = stops[stops.length - 1];
+    for (let i = 0; i < stops.length - 1; i++) {
+        if (t >= stops[i][0] && t <= stops[i + 1][0]) {
+            lo = stops[i];
+            hi = stops[i + 1];
+            break;
+        }
+    }
+
+    const f = (t - lo[0]) / (hi[0] - lo[0] + 1e-8);
+    return [
+        Math.round(lo[1] + f * (hi[1] - lo[1])),
+        Math.round(lo[2] + f * (hi[2] - lo[2])),
+        Math.round(lo[3] + f * (hi[3] - lo[3])),
+    ];
+}
+
+function computeFFTMagnitude(real, n) {
+    // Radix-2 in-place FFT (Cooley-Tukey)
+    const imag = new Float32Array(n);
+    // Bit-reverse permutation
+    let j = 0;
+    for (let i = 0; i < n; i++) {
+        if (i < j) {
+            [real[i], real[j]] = [real[j], real[i]];
+        }
+        let m = n >> 1;
+        while (m >= 1 && j >= m) { j -= m; m >>= 1; }
+        j += m;
+    }
+    // FFT butterfly
+    for (let size = 2; size <= n; size *= 2) {
+        const halfSize = size / 2;
+        const angle = -2 * Math.PI / size;
+        for (let i = 0; i < n; i += size) {
+            for (let k = 0; k < halfSize; k++) {
+                const twR = Math.cos(angle * k);
+                const twI = Math.sin(angle * k);
+                const idx1 = i + k;
+                const idx2 = i + k + halfSize;
+                const tR = twR * real[idx2] - twI * imag[idx2];
+                const tI = twR * imag[idx2] + twI * real[idx2];
+                real[idx2] = real[idx1] - tR;
+                imag[idx2] = imag[idx1] - tI;
+                real[idx1] += tR;
+                imag[idx1] += tI;
+            }
+        }
+    }
+    // Return magnitudes for first half
+    const mag = new Float32Array(n / 2);
+    for (let i = 0; i < n / 2; i++) {
+        mag[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+    }
+    return mag;
+}
+
+function downloadSpectrogram() {
+    spectrogramCanvas.toBlob((blob) => {
+        if (!blob) return;
+        download(blob, 'spectrogram.png');
+    }, 'image/png');
 }
 
 // ═════════════════════════════════════════════════════════
@@ -661,23 +879,6 @@ function samplesToWav(samples, sampleRate) {
 function saveWAV() {
     if (!currentWavBlob) return;
     download(currentWavBlob, 'recording.wav');
-}
-
-function saveHash() {
-    if (!currentHash) return;
-    const payload = {
-        hash:       currentHash,
-        hashLength: NUM_BUCKETS,
-        sampleRate: recSampleRate,
-        fftSize:    FFT_SIZE,
-        silentBuckets:  (currentHash.match(/-/g) || []).length,
-        activeBuckets:  NUM_BUCKETS - (currentHash.match(/-/g) || []).length,
-    };
-    const blob = new Blob(
-        [JSON.stringify(payload, null, 2)],
-        { type: 'application/json' }
-    );
-    download(blob, 'spectral_hash.json');
 }
 
 function playRecording() {
