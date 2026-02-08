@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.fft import rfft, irfft
 from scipy.spatial.distance import cosine, euclidean
 from scipy.optimize import minimize
+from scipy.interpolate import interp1d
 
 
 SR = None
@@ -74,26 +75,97 @@ def get_pitch_stats(y, sr):
     
     return np.mean(valid_pitches), np.std(valid_pitches)
 
+
+def resample_to_fixed(feature_2d, n_frames=32):
+    """Resample a 2D feature matrix (n_features x time) to fixed number of frames.
+    This preserves the temporal shape/trajectory of features."""
+    n_feat, n_time = feature_2d.shape
+    if n_time < 2:
+        return np.tile(feature_2d, (1, n_frames))[:, :n_frames]
+    x_orig = np.linspace(0, 1, n_time)
+    x_new  = np.linspace(0, 1, n_frames)
+    resampled = np.zeros((n_feat, n_frames))
+    for i in range(n_feat):
+        f = interp1d(x_orig, feature_2d[i], kind='linear')
+        resampled[i] = f(x_new)
+    return resampled
+
+
+def get_spectral_flux(y, sr):
+    """Frame-to-frame spectral change — captures temporal dynamics of the FFT."""
+    S = np.abs(librosa.stft(y, n_fft=N_FFT, hop_length=HOP))
+    # Diff between consecutive frames
+    diff = np.diff(S, axis=1)
+    # L2 norm per frame
+    flux = np.sqrt(np.sum(diff**2, axis=0))
+    return flux
+
+
+def get_onset_envelope(y, sr, n_frames=32):
+    """Onset strength envelope — captures rhythm and timing of speech energy.
+    Resampled to fixed length for comparison."""
+    onset = librosa.onset.onset_strength(y=y, sr=sr, hop_length=HOP)
+    # Normalize
+    onset = onset / (np.max(onset) + EPS)
+    # Resample to fixed length
+    if len(onset) < 2:
+        return np.zeros(n_frames)
+    x_orig = np.linspace(0, 1, len(onset))
+    x_new  = np.linspace(0, 1, n_frames)
+    f = interp1d(x_orig, onset, kind='linear')
+    return f(x_new)
+
+
 def build_embeddings(path):
     y, sr = load_and_normalize(path)
     
+    # ── Static features (time-averaged) ──
     mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
-    
     anatomy = get_anatomy_features(y, sr)
     p_mean, p_std = get_pitch_stats(y, sr)
 
+    # ── Temporal features ──
+    # Delta MFCCs: velocity of spectral shape change
+    delta_mfcc = librosa.feature.delta(mfccs, order=1)
+    delta_mfcc_mean = np.mean(delta_mfcc, axis=1)  # mean trajectory derivative
+
+    # Spectral flux: frame-to-frame FFT change
+    flux = get_spectral_flux(y, sr)
+    flux_stats = np.array([np.mean(flux), np.std(flux)])
+
+    # Onset/rhythm envelope (resampled to fixed 32 frames)
+    onset_env = get_onset_envelope(y, sr, n_frames=32)
+
+    # MFCC trajectory: the actual temporal shape of MFCC features
+    # resampled to 32 frames so different-length recordings align
+    mfcc_traj = resample_to_fixed(mfccs, n_frames=32).flatten()
+
+    """
+    voice_shape         : 0.009193
+    pitch_avg           : 0.110401
+    pitch_std           : 0.103234
+    brightness          : 0.422442
+    delta_mfcc          : 0.018247
+    spectral_flux       : 0.003286
+    onset_rhythm        : 0.253279
+    mfcc_trajectory     : 0.079919
+    """
+
     return {
-        "voice_shape": (np.mean(mfccs, axis=1), 0.0047), 
-        "vocal_tract": (anatomy['vocal_tract'], 0.0), 
-        "pitch_avg": (p_mean, 0.0569), 
-        "pitch_std": (p_std, 0.5589),  
-        "brightness": (anatomy['brightness'], 0.378)
+        "voice_shape":     (np.mean(mfccs, axis=1), 0.009193),
+        "pitch_avg":       (p_mean, 0.110401),
+        "pitch_std":       (p_std, 0.103234),
+        "brightness":      (anatomy['brightness'], 0.422442),
+        "delta_mfcc":      (delta_mfcc_mean, 0.018247),
+        "spectral_flux":   (flux_stats, 0.003286),
+        "onset_rhythm":    (onset_env, 0.253279),
+        "mfcc_trajectory": (mfcc_traj, 0.079919),
     }
 
 
 def compare_files(path1, path2):
-    path1 = f"{path1}.wav"
-    path2 = f"{path2}.wav"
+    path1 = f"../{path1}.wav"
+    path2 = f"../{path2}.wav"
 
     emb1 = build_embeddings(path1)
     emb2 = build_embeddings(path2)
@@ -120,7 +192,7 @@ def compare_files(path1, path2):
 
 # compare j1, j2, r1, r2, t1, t2 via a matrix
 def compare_all():
-    # names = ['j1', 'j2', 'r1', 'r2', 't1', 't2']
+    names = ['recording_j1', 'recording_j2', 'recording_r1', 'recording_r2', 'recording_t1', 'recording_t2']
     names = ["whistle_diff", "whistle_same_1", "whistle_same_2", "whistle_varied", "blueberrypancake", "recording_t1", "recording_j1"]
     matrix = np.zeros((len(names), len(names)))
 
