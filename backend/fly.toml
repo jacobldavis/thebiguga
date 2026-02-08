@@ -1,0 +1,33 @@
+# fly.toml app configuration file generated for offkey on 2026-02-08T04:50:50-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'offkey'
+primary_region = 'iad'
+console_command = '/code/manage.py shell'
+
+[build]
+
+[processes]
+  app = "python manage.py runserver 0.0.0.0:8000"
+
+[env]
+  PORT = '8000'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256
+
+[[statics]]
+  guest_path = '/code/static'
+  url_prefix = '/static/'
