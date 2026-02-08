@@ -39,6 +39,8 @@ let currentHash    = '';
 let currentWavBlob = null;
 let currentMode    = null;        // 'record' or 'authenticate'
 let awaitingUsername = false;      // waiting for username entry
+let voiceDetected  = false;       // has voice crossed the RMS threshold?
+let voiceSampleCount = 0;         // samples captured since voice detected
 
 // ─── DOM refs ────────────────────────────────────────────
 const canvas        = document.getElementById('waveform');
@@ -149,7 +151,10 @@ async function startRecording() {
     processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
     capturedChunks = [];
     capturedSampleCount = 0;
+    voiceDetected = false;
+    voiceSampleCount = 0;
     const targetSamples = MAX_DURATION_S * recSampleRate;
+    const VOICE_RMS_THRESHOLD = 0.015;  // RMS level that counts as "voice started"
 
     processorNode.onaudioprocess = (e) => {
         if (!recording) return;
@@ -157,12 +162,28 @@ async function startRecording() {
         capturedChunks.push(buf);
         capturedSampleCount += buf.length;
 
-        // Update timer display based on actual captured audio
-        const capturedSecs = capturedSampleCount / recSampleRate;
+        // Check if voice has been detected yet (RMS exceeds threshold)
+        if (!voiceDetected) {
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+            const rms = Math.sqrt(sum / buf.length);
+            if (rms >= VOICE_RMS_THRESHOLD) {
+                voiceDetected = true;
+                timerEl.textContent = '0.0s';
+            } else {
+                timerEl.textContent = 'waiting for voice...';
+                return;  // don't count pre-voice silence toward the 5s
+            }
+        }
+
+        voiceSampleCount += buf.length;
+
+        // Update timer based on samples since voice started
+        const capturedSecs = voiceSampleCount / recSampleRate;
         timerEl.textContent = `${capturedSecs.toFixed(1)}s`;
 
-        // Auto-stop once we've captured enough samples
-        if (capturedSampleCount >= targetSamples) stopRecording();
+        // Auto-stop once we've captured enough samples after voice start
+        if (voiceSampleCount >= targetSamples) stopRecording();
     };
 
     sourceNode.connect(processorNode);
@@ -223,8 +244,16 @@ function stopRecording() {
         return;
     }
 
-    currentWavBlob = samplesToWav(samples, recSampleRate);
-    drawStaticWaveform(samples);
+    // ── Trim leading/trailing silence ──
+    const trimmed = trimSilence(samples, recSampleRate);
+    if (trimmed.length < FFT_SIZE) {
+        showError('recording too quiet – please speak louder.');
+        drawIdleLine();
+        return;
+    }
+
+    currentWavBlob = samplesToWav(trimmed, recSampleRate);
+    drawStaticWaveform(trimmed);
 
     // ── Show save buttons immediately ──
     btnWav.disabled = false;
@@ -442,6 +471,55 @@ function drawStaticWaveform(samples) {
         ctx.lineTo(i, amp + max * amp);
     }
     ctx.stroke();
+}
+
+// ═════════════════════════════════════════════════════════
+//  Silence Trimmer  (matches librosa.effects.trim top_db=30)
+// ═════════════════════════════════════════════════════════
+
+function trimSilence(samples, sampleRate, topDb = 35) {
+    // Compute RMS in short frames and find where it exceeds the threshold
+    const frameLen = Math.floor(sampleRate * 0.02);  // 20ms frames
+    const hop      = Math.floor(frameLen / 2);        // 50% overlap
+    const nFrames  = Math.floor((samples.length - frameLen) / hop) + 1;
+
+    if (nFrames < 1) return samples;
+
+    // Compute per-frame RMS
+    const rms = new Float32Array(nFrames);
+    let maxRms = 0;
+    for (let i = 0; i < nFrames; i++) {
+        let sum = 0;
+        const base = i * hop;
+        for (let j = 0; j < frameLen; j++) {
+            const s = samples[base + j];
+            sum += s * s;
+        }
+        rms[i] = Math.sqrt(sum / frameLen);
+        if (rms[i] > maxRms) maxRms = rms[i];
+    }
+
+    if (maxRms < 1e-8) return samples;  // all silence
+
+    // Threshold: topDb below the peak RMS
+    const threshold = maxRms * Math.pow(10, -topDb / 20);
+
+    // Find first and last frame above threshold
+    let startFrame = 0;
+    let endFrame   = nFrames - 1;
+    while (startFrame < nFrames && rms[startFrame] < threshold) startFrame++;
+    while (endFrame > startFrame && rms[endFrame]   < threshold) endFrame--;
+
+    // Convert frames back to sample indices
+    const startSample = startFrame * hop;
+    const endSample   = Math.min(endFrame * hop + frameLen, samples.length);
+
+    // Add a tiny margin (50ms) to avoid cutting speech onsets/releases
+    const margin = Math.floor(sampleRate * 0.05);
+    const trimStart = Math.max(0, startSample - margin);
+    const trimEnd   = Math.min(samples.length, endSample + margin);
+
+    return samples.slice(trimStart, trimEnd);
 }
 
 // ═════════════════════════════════════════════════════════

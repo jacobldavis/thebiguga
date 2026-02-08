@@ -1,93 +1,11 @@
-# Auditory Auth - Spectral Fingerprint System
+## Team Members
+Our party consists of Toby Cox, Ryon Peddapalli, and Jacob Davis!
 
-A web application that records audio and generates unique spectral fingerprints using FFT (Fast Fourier Transform) analysis.
+## Project purpose
+Inspired by the Sam & Cat Magic ATM skit, we cast offkey, a tool for converting audio into replicable passwords and hashes for authentication and security sturdier than the knock spell! Popular tunes and songs can be easier to remember than strings of passwords, and offkey provides a solution to help prevent that pesky annoyance of forgetting your password. Offkey is valuable for authenticating voices over phone calls for important transactions for example, and helps assist elder community members and those with poor memory use their passwords, as music and sound are easy to recall.
 
-## Project Structure
+## How we built it
+Our backend is written in Python and we use Django for our frontend from JavaScript, HTML, and CSS code. We make use of the SciPy, NumPy, and Librosa libraries in Python, and offkey.tech is our domain name (pending registration).
 
-```
-thebiguga/
-├── frontend/          # Static web application
-│   ├── index.html    # Main webpage
-│   ├── style.css     # Styling
-│   ├── app.js        # Audio recording & UI
-│   └── README.md     # Frontend documentation
-│
-└── backend/          # Django API server
-    ├── manage.py     # Django management
-    ├── main.py       # FFT processing logic
-    ├── requirements.txt
-    ├── auditory_auth/  # Django project settings
-    ├── core/          # API endpoints
-    └── README.md      # Backend documentation
-```
-
-## Quick Start
-
-### 1. Start the Backend (Terminal 1)
-```bash
-cd backend
-pip install -r requirements.txt
-python manage.py runserver
-```
-
-Backend will run on http://localhost:8000
-
-### 2. Start the Frontend (Terminal 2)
-```bash
-cd frontend
-python -m http.server 3000
-```
-
-Frontend will run on http://localhost:3000
-
-### 3. Use the Application
-1. Open http://localhost:3000 in your browser
-2. Click "Start Recording" and speak/make sound for up to 5 seconds
-3. The audio is automatically sent to the backend for FFT processing
-4. View the generated spectral fingerprint hash
-5. Download the WAV file or hash JSON if needed
-
-## How It Works
-
-1. **Frontend**: Records audio in the browser using Web Audio API
-2. **Frontend**: Creates a WAV file from the recorded audio
-3. **Frontend**: Sends the WAV file to backend via HTTP POST
-4. **Backend**: Receives WAV and performs FFT analysis
-5. **Backend**: Computes spectral centroid for each time bucket
-6. **Backend**: Maps frequency data to characters creating a unique hash
-7. **Frontend**: Displays the hash and recording metrics
-
-## Architecture
-
-- **Frontend (Client-Side)**: Pure HTML/CSS/JavaScript - no build tools needed
-- **Backend (Server-Side)**: Django + NumPy + SciPy for FFT processing
-- **Communication**: REST API with CORS enabled
-- **Data Flow**: Browser → WAV → Backend FFT → Hash → Browser
-
-## Features
-
-- Real-time audio recording with waveform visualization
-- Server-side FFT processing for consistent results
-- 64-character spectral fingerprint hash
-- Logarithmic frequency mapping for perceptual accuracy
-- Silence detection and handling
-- WAV file export
-- Hash JSON export with metadata
-
-## Technology Stack
-
-**Frontend:**
-- Vanilla JavaScript (ES6+)
-- Web Audio API
-- Canvas API for visualization
-
-**Backend:**
-- Python 3.x
-- Django (API framework)
-- NumPy (numerical computing)
-- SciPy (FFT implementation)
-- django-cors-headers (CORS support)
-
-## Development
-
-See individual README files in `frontend/` and `backend/` directories for detailed documentation.
+## Challenges we overcame
+Determining a solid metric and method for reliably classifying the audio took up most of our time. Factors that made this challenging include accounting for the time domain, understanding how to determine a voice different from another, and accounting for minute differences that could result in an entirely different hash. We explored methods including the Fast Fourier Transform, Mel-Frequency Cepstral Coefficients, and deep learning models with PyTorch. We landed on a traditional method using the Fast Fourier Transform for its relative computational efficiency and scalability, conducting a parameter space search to find an optimal configuration for determining suitable audio clips. We also sample input audio in discrete timesteps across a fixed number of buckets for increased performance and more consistent classifications.
