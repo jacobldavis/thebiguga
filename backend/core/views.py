@@ -1,9 +1,11 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 import io
 import sys
 import os
 import tempfile
+from pathlib import Path
 
 # Add parent directory to path to import main.py and mfcc.py
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -12,6 +14,21 @@ from mfcc import compare_files
 
 # Directory where voice prints are stored
 VOICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ABOUT_PATH = PROJECT_ROOT / 'frontend' / 'ABOUT.md'
+
+
+@require_GET
+def about_content(request):
+    try:
+        with ABOUT_PATH.open(encoding='utf-8') as fp:
+            markdown = fp.read()
+    except FileNotFoundError:
+        return JsonResponse({'error': 'about file not found'}, status=404)
+    except OSError as exc:
+        return JsonResponse({'error': str(exc)}, status=500)
+
+    return JsonResponse({'content': markdown})
 
 
 def api_info(request):
