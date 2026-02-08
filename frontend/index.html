@@ -3,39 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auditory Auth – Spectral Fingerprint</title>
+    <title>offkey</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>🎤 Auditory Auth – Spectral Fingerprint</h1>
-    <p class="subtitle">Record up to <strong>5 seconds</strong> of audio. It will be hashed into a spectral fingerprint string.</p>
 
-    <canvas id="waveform" width="640" height="120"></canvas>
+    <header>
+        <h1>offkey</h1>
+        <p>a spell to transmute audio into authentication</p>
+    </header>
 
-    <div id="controls">
-        <button id="btn-record">⏺ Start Recording</button>
-        <button id="btn-save-wav" disabled>🔊 Save WAV</button>
-        <button id="btn-save-hash" disabled>💾 Save Hash JSON</button>
-    </div>
+    <main>
+        <div class="card">
+            <canvas id="waveform" width="640" height="100"></canvas>
 
-    <div id="status">
-        <span id="rec-indicator" class="hidden">🔴 Recording…</span>
-        <span id="timer">0.0 s / 5.0 s</span>
-    </div>
+            <button id="btn-record">record</button>
 
-    <div id="result-section" class="hidden">
-        <h3>Spectral Hash</h3>
-        <pre id="hash-display"></pre>
-        <p class="hash-info">
-            <span id="hash-length">0</span> characters
-            &nbsp;·&nbsp;
-            <span id="bucket-count">0</span> time buckets
-            &nbsp;·&nbsp;
-            bucket size <span id="bucket-size">2048</span> samples
-            &nbsp;·&nbsp;
-            sample rate <span id="sample-rate">—</span> Hz
-        </p>
-    </div>
+            <div id="status">
+                <span id="rec-indicator" class="hidden">listening&hellip;</span>
+                <span id="timer"></span>
+            </div>
+        </div>
+
+        <div id="result-section" class="card hidden">
+            <p class="result-label">spectral hash</p>
+            <pre id="hash-display"></pre>
+            <div class="save-row">
+                <button id="btn-save-wav" class="small" disabled>save wav</button>
+                <button id="btn-save-hash" class="small" disabled>save hash</button>
+                <button id="btn-playback" class="small" disabled>playback</button>
+            </div>
+            <details class="hash-info">
+                <summary><span id="hash-length">0</span> chars &middot; <span id="bucket-count">0</span> buckets</summary>
+                <span id="bucket-size">2048</span> samples/bucket &middot; <span id="sample-rate">&mdash;</span> hz
+            </details>
+        </div>
+    </main>
 
     <script src="app.js"></script>
 </body>
