@@ -193,7 +193,7 @@ def compare_files(path1, path2):
 # compare j1, j2, r1, r2, t1, t2 via a matrix
 def compare_all():
     names = ['recording_j1', 'recording_j2', 'recording_r1', 'recording_r2', 'recording_t1', 'recording_t2']
-    names = ["whistle_diff", "whistle_same_1", "whistle_same_2", "whistle_varied", "blueberrypancake", "recording_t1", "recording_j1"]
+    # names = ["whistle_diff", "whistle_same_1", "whistle_same_2", "whistle_varied", "blueberrypancake", "recording_t1", "recording_j1"]
     matrix = np.zeros((len(names), len(names)))
 
     for i, name1 in enumerate(names):
