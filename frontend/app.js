@@ -63,7 +63,10 @@ const authScoreDisplay  = document.getElementById('auth-score-display');
 
 // ─── Button event listeners ──────────────────────────────
 btnRecord.addEventListener('click', () => {
-    if (awaitingUsername) return;
+    if (awaitingUsername) {
+        awaitingUsername = false;
+        usernameInput.classList.remove('prompting');
+    }
     currentMode = 'record';
     toggleRecording().catch(err => {
         console.error('toggleRecording error:', err);
@@ -72,7 +75,10 @@ btnRecord.addEventListener('click', () => {
 });
 
 btnAuth.addEventListener('click', () => {
-    if (awaitingUsername) return;
+    if (awaitingUsername) {
+        awaitingUsername = false;
+        usernameInput.classList.remove('prompting');
+    }
     currentMode = 'authenticate';
     toggleRecording().catch(err => {
         console.error('toggleRecording error:', err);
@@ -219,6 +225,12 @@ function stopRecording() {
 
     currentWavBlob = samplesToWav(samples, recSampleRate);
     drawStaticWaveform(samples);
+
+    // ── Show save buttons immediately ──
+    btnWav.disabled = false;
+    btnHash.disabled = false;
+    btnPlayback.disabled = false;
+    processAudio();
 
     // ── Prompt for username ──
     awaitingUsername = true;

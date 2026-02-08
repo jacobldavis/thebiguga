@@ -285,17 +285,17 @@ button:disabled {
     padding: 14px;
     letter-spacing: 2px;
     background: linear-gradient(to right, 
-        #3d2d4a 0%, 
-        #553c6b 7%, 
-        #4a3459 14%, 
-        #553c6b 21%, 
-        #4a3459 50%, 
-        #553c6b 79%, 
-        #4a3459 86%, 
-        #553c6b 93%, 
-        #3d2d4a 100%
+        #4a3d2a 0%, 
+        #6b5c3d 7%, 
+        #5a4a35 14%, 
+        #6b5c3d 21%, 
+        #5a4a35 50%, 
+        #6b5c3d 79%, 
+        #5a4a35 86%, 
+        #6b5c3d 93%, 
+        #4a3d2a 100%
     );
-    color: #c8b8d4;
+    color: #d4c8b8;
     clip-path: polygon(
         3% 0.8%, 25% 0.2%, 50% 0%, 75% 0.3%, 97% 0.7%,
         99.8% 25%, 100% 75%, 99.6% 99.2%,
@@ -306,17 +306,17 @@ button:disabled {
 
 #btn-record.recording {
     background: linear-gradient(to right, 
-        #584456 0%, 
-        #7a5a72 7%, 
-        #6a4e64 14%, 
-        #7a5a72 21%, 
-        #6a4e64 50%, 
-        #7a5a72 79%, 
-        #6a4e64 86%, 
-        #7a5a72 93%, 
-        #584456 100%
+        #5a4a35 0%, 
+        #7a6249 7%, 
+        #6a5641 14%, 
+        #7a6249 21%, 
+        #6a5641 50%, 
+        #7a6249 79%, 
+        #6a5641 86%, 
+        #7a6249 93%, 
+        #5a4a35 100%
     );
-    color: #d8c8d4;
+    color: #e4d8c8;
 }
 
 #btn-save-wav {
@@ -363,17 +363,17 @@ button:disabled {
 
 #btn-playback {
     background: linear-gradient(to right, 
-        #4a3d2a 0%, 
-        #6b5c3d 7%, 
-        #5a4a35 14%, 
-        #6b5c3d 21%, 
-        #5a4a35 50%, 
-        #6b5c3d 79%, 
-        #5a4a35 86%, 
-        #6b5c3d 93%, 
-        #4a3d2a 100%
+        #3d2d4a 0%, 
+        #553c6b 7%, 
+        #4a3459 14%, 
+        #553c6b 21%, 
+        #4a3459 50%, 
+        #553c6b 79%, 
+        #4a3459 86%, 
+        #553c6b 93%, 
+        #3d2d4a 100%
     );
-    color: #d4c8b8;
+    color: #c8b8d4;
     clip-path: polygon(
         3% 0.4%, 25% 0.1%, 50% 0.3%, 75% 0%, 98% 0.6%,
         100% 25%, 100% 75%, 99.4% 99.6%,
@@ -454,17 +454,17 @@ button.small {
     padding: 14px;
     letter-spacing: 2px;
     background: linear-gradient(to right, 
-        #2a3d4a 0%, 
-        #3c5566 7%, 
-        #344858 14%, 
-        #3c5566 21%, 
-        #344858 50%, 
-        #3c5566 79%, 
-        #344858 86%, 
-        #3c5566 93%, 
-        #2a3d4a 100%
+        #4a4a4a 0%, 
+        #6a6a6a 7%, 
+        #5a5a5a 14%, 
+        #6a6a6a 21%, 
+        #5a5a5a 50%, 
+        #6a6a6a 79%, 
+        #5a5a5a 86%, 
+        #6a6a6a 93%, 
+        #4a4a4a 100%
     );
-    color: #b8d0d4;
+    color: #d4d4d4;
     clip-path: polygon(
         3% 0.8%, 25% 0.2%, 50% 0%, 75% 0.3%, 97% 0.7%,
         99.8% 25%, 100% 75%, 99.6% 99.2%,
@@ -475,17 +475,17 @@ button.small {
 
 #btn-authenticate.recording {
     background: linear-gradient(to right, 
-        #3a5060 0%, 
-        #4c6a7a 7%, 
-        #425868 14%, 
-        #4c6a7a 21%, 
-        #425868 50%, 
-        #4c6a7a 79%, 
-        #425868 86%, 
-        #4c6a7a 93%, 
-        #3a5060 100%
+        #5a5a5a 0%, 
+        #7a7a7a 7%, 
+        #6a6a6a 14%, 
+        #7a7a7a 21%, 
+        #6a6a6a 50%, 
+        #7a7a7a 79%, 
+        #6a6a6a 86%, 
+        #7a7a7a 93%, 
+        #5a5a5a 100%
     );
-    color: #d8e8ec;
+    color: #e4e4e4;
 }
 
 /* ── auth result ─────────── */
