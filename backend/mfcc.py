@@ -388,8 +388,12 @@ def build_embeddings(path, debug=False):
 def compare_files(path1, path2, debug=False):
     if not os.path.isabs(path1):
         path1 = f"../{path1}.wav"
+    else:
+        path1 = f"{path1}.wav"
     if not os.path.isabs(path2):
         path2 = f"../{path2}.wav"
+    else:
+        path2 = f"{path2}.wav"
 
     if debug:
         print(f"    Loading {os.path.basename(path1)}...", flush=True)

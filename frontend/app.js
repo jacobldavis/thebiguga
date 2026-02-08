@@ -349,8 +349,9 @@ async function authenticateVoice(username) {
         } else {
             const score = parseFloat(result.similarity);
             const pct = (score * 100).toFixed(1);
+            const scoreClass = score >= 0.8 ? 'score-good' : 'score-bad';
             authScoreDisplay.innerHTML =
-                `${pct}%<span class="score-label">similarity to ${username}'s voice print</span>`;
+                `<span class="${scoreClass}">${pct}%</span><span class="score-label">similarity to ${username}'s voice print</span>`;
         }
         authResultSection.classList.remove('hidden');
         timerEl.textContent = '';
