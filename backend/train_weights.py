@@ -152,7 +152,7 @@ def build_similarity_matrix(pairs, embeddings):
     return np.array(X, dtype=np.float32)
 
 
-def train(X_base, y_base, n_epochs=3000):
+def train(X_base, y_base, n_epochs=13000):
     """Train lean model for speaker verification. Returns trained model."""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"\nUsing device: {device}", flush=True)
